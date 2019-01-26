@@ -2,48 +2,61 @@ package fleetmanagerMain;
 
 import java.sql.Connection;
 import java.sql.Statement;
+import java.util.ArrayList;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
 
-public class CarDatabaseConnector {
+public class CarDatabaseHandler {
 	private Connection conn=null;
 	private Statement statement=null;
 
-	//used to connect car database
-	public CarDatabaseConnector() {
+	//Connects to car database
+	public CarDatabaseHandler() {
 		
 		try {
-			Class.forName("org.sqlite.JDBC"); 										//makes sure that sqlite is loaded and registered with system
+			Class.forName("org.sqlite.JDBC"); 											//makes sure that sqlite is loaded and registered with system
 			conn = DriverManager.getConnection("jdbc:sqlite:CarDatabase.db");			//connects to database named "CarDatabase.db"
 			
-			System.out.println("connection successful");							//no errors in debugging so far
-			
-			ListCarsTemporary();
-			
+			System.out.println("connection successful");								//connection to car database has been established
+					
 			
 		}catch(Exception e) {
+			System.out.println("connection unsuccessful");
 			e.printStackTrace();
 		}
 	}
-		
-	//temporary testing method
-	//TODO: works even with missing values for car
-	public void ListCarsTemporary() {
+	
+	
+	
+	public void executeSQLQuery(String query) {
 		try{
 			this.statement = conn.createStatement();
-			ResultSet rs = statement.executeQuery("SELECT * FROM Cars");
-			
-			while(rs.next()) {
-				Car displaycar = new Car(rs.getString("Brand"),rs.getString("Model"),rs.getString("Licence"),rs.getInt("YearModel"),rs.getString("Inspection"),rs.getInt("EngineSize"),rs.getInt("EnginePower"));
-				
-				System.out.println(displaycar.toString());
-			}
-			
+			statement.execute(query);
 			
 		}catch(Exception e) {
+			System.out.println("Error in query: ");
 			e.printStackTrace();
 		}
 	}
+	
+	
+	
+	public ArrayList<Car> getCarListSQL(String query){
+		ArrayList<Car> cars = new ArrayList<Car>();
+		try {
+			this.statement = conn.createStatement();
+			ResultSet rs = statement.executeQuery(query);
+			while(rs.next()) {
+				Car displaycar = new Car(rs.getString("Brand"),rs.getString("Model"),rs.getString("Licence"),rs.getInt("YearModel"),rs.getString("Inspection"),rs.getInt("EngineSize"),rs.getInt("EnginePower"));
+				cars.add(displaycar);
+			}
+		}catch(Exception e) {
+			e.printStackTrace();
+		}
+		
+		return cars;
+	}
+	
 	
 	public void closeConnection() {
 		try {
@@ -52,6 +65,7 @@ public class CarDatabaseConnector {
 			e.printStackTrace();
 		}
 	}
+	
 		
 
 }
