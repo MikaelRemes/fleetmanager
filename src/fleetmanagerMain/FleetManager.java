@@ -3,9 +3,13 @@ package fleetmanagerMain;
 import java.util.ArrayList;
 
 public class FleetManager {
-
+	
+	private CarDatabaseConnector connector;
+	
 	public FleetManager() {
+		connector = new CarDatabaseConnector();
 		
+		connector.closeConnection();
 	}
 
 	public static void main(String[] args) {
