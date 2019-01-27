@@ -1,11 +1,13 @@
 package fleetmanagerMain;
 
 
+import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executors;
@@ -17,35 +19,51 @@ import com.sun.net.httpserver.HttpServer;
 
 import java.nio.charset.StandardCharsets;
 
-public class FleetManager implements HttpHandler{
+public class ConnectionHandler implements HttpHandler{
 	
 	private CarDatabaseHandler carHandler;
 	
 	// server port
 	static final int PORT = 8082;
 	
+	static final int maxOnlineTime = 60;														//server online for maximum of 1 minute
+	static int currentOnlineTime = 0;
+	static int connectionNumber = 1;															//How many connections have been made
+	
 	boolean running=true;
 	
 	
-	public FleetManager() {
+	public ConnectionHandler() {
 		carHandler = new CarDatabaseHandler();
 	}
 
 	public static void main(String[] args) {
 		try {
+
 			HttpServer server = HttpServer.create(new InetSocketAddress(PORT), 0);
 			
-			FleetManager connection= new FleetManager();
+			ConnectionHandler connection= new ConnectionHandler();
 							
-			server.createContext("/test", connection);
-	        server.setExecutor(Executors.newFixedThreadPool(1)); 										// creates a default executor
+			server.createContext("/test", connection);													// write "http://localhost:8082/test" to connect
+	        server.setExecutor(null); 																	// creates a default executor
 	        server.start();
 			
-			System.out.println("Server online \n");
+			System.out.println("connection handler number " + connectionNumber + " online \n");
 			
-			while(connection.running) {
-				Thread.sleep(1000);
+			while(currentOnlineTime <= maxOnlineTime) {
+				Thread.sleep(500);																		//setup time for connectionHandler
+				
+				if(connection.running==false) {															//once response has been done, creates new connectionhandler for next response
+					connection= new ConnectionHandler();
+					server.createContext("/test", connection);
+					connectionNumber++;
+					System.out.println("connection handler number " + connectionNumber + "online \n");
+				}
+				
+				Thread.sleep(500);																		//setup time for connectionHandler
+				currentOnlineTime++;
 			}
+			
 			
 			server.stop(1);
 			
@@ -110,32 +128,32 @@ public class FleetManager implements HttpHandler{
 			
 			System.out.println("Exchange request method: " + requestMethod + "\n");														//Checks the request method, POST,GET,DELETE etc.
 			
-			StringBuilder headers = new StringBuilder();
-            Headers requestHeaders = exchange.getRequestHeaders();																	//Gets the headers of the http request
-            for (Map.Entry<String, List<String>> header : requestHeaders.entrySet()) {
-                headers.append(header);
-                headers.append("\n");
+			StringBuilder requestHeaders = new StringBuilder();
+            Headers headers = exchange.getRequestHeaders();																		//Gets the headers of the http request
+            for (Map.Entry<String, List<String>> header : headers.entrySet()) {
+            	requestHeaders.append(header);
+            	requestHeaders.append("\n");
             }
             
-            System.out.println("connection headers: \n" + headers.toString());
+            System.out.println("connection headers: \n" + requestHeaders.toString());
 			
-			StringBuilder body = new StringBuilder();																				//Gets the body of the http request
+			StringBuilder requestBody = new StringBuilder();																					//Gets the body of the http request
             try (InputStreamReader reader = new InputStreamReader(exchange.getRequestBody(), StandardCharsets.UTF_8.name())) {
                 char[] buffer = new char[256];
                 int read;
                 while ((read = reader.read(buffer)) != -1) {
-                    body.append(buffer, 0, read);
+                	requestBody.append(buffer, 0, read);
                 }
             }
             
             exchange.getRequestBody().close();
-            System.out.println("connection body: \n" + body.toString() + "\n");      
+            System.out.println("connection body: \n" + requestBody.toString() + "\n");      
             
             
 
 			//client wishes to see a particular set of cars in database
 			if(requestMethod.equals("GET")) {
-				doGetCarResponse(exchange,body);
+				doGetCarResponse(exchange,requestHeaders, requestBody);
 			}
 			
 			//client wishes to add a car to database
@@ -166,53 +184,53 @@ public class FleetManager implements HttpHandler{
 			try {
 				//TODO: these handled outside method
 				carHandler.closeConnection();
+				System.out.println("Closed connection to database");
 				
 			} catch (Exception e) {
 				System.err.println("Error closing connections: " + e.getMessage());
 			} 
 			
 			running=false;	
-			System.out.println("Server offline");
+			System.out.println("connection handler offline");
 		}
 	}
 	
 	
-	public void doGetCarResponse(HttpExchange exchange, StringBuilder body) throws IOException{
+	public void doGetCarResponse(HttpExchange exchange, StringBuilder requestHeaders, StringBuilder requestBody) throws IOException{
 		
-		 Headers requestHeaders = exchange.getRequestHeaders();
-         Headers responseHeaders = exchange.getResponseHeaders();
-         for (Map.Entry<String, List<String>> header : requestHeaders.entrySet()) {
-             responseHeaders.put(header.getKey(), header.getValue());
-         }
-         
-         exchange.sendResponseHeaders(200, body.length() == 0 ? -1 : body.length());
-         if (body.length() > 0) {
-             try (OutputStream out = exchange.getResponseBody()) {
-                 out.write(body.toString().getBytes(StandardCharsets.UTF_8.name()));
+      
+        String responseBody = "Hello";
+        
+        Headers responseHeaders = exchange.getResponseHeaders();
+        responseHeaders.add("Content-type","text/plain");
+        
+
+         exchange.sendResponseHeaders(200, responseBody.length() == 0 ? -1 : responseBody.length());					//if body length is 0 send -1 (no body), if not send body length
+         if (responseBody.length() > 0) {
+             try (BufferedOutputStream out = new BufferedOutputStream(exchange.getResponseBody())) {
+                 out.write(responseBody.getBytes("UTF-8"));
              }
          }
          
-         System.out.println("responce head: " + responseHeaders.toString());
-         System.out.println("responce body: " + body.toString());
+         StringBuilder headers = new StringBuilder();
+         for (Map.Entry<String, List<String>> header : responseHeaders.entrySet()) {
+         	headers.append(header);
+         	headers.append("\n");
+         }
+         
+         
+         System.out.println("response head: \n" + headers.toString());
+         System.out.println("response body: \n" + responseBody.toString() + "\n");
 	}
 	
-	public void doPostCarResponse(HttpExchange exchange, StringBuilder body) throws IOException{
+	public void doPostCarResponse(HttpExchange exchange, Headers requestHeaders, StringBuilder body) throws IOException{
 		
-		Headers requestHeaders = exchange.getRequestHeaders();
+		
         Headers responseHeaders = exchange.getResponseHeaders();
-        for (Map.Entry<String, List<String>> header : requestHeaders.entrySet()) {
-            responseHeaders.put(header.getKey(), header.getValue());
-        }
         
-        exchange.sendResponseHeaders(200, body.length() == 0 ? -1 : body.length());
-        if (body.length() > 0) {
-            try (OutputStream out = exchange.getResponseBody()) {
-                out.write(body.toString().getBytes(StandardCharsets.UTF_8.name()));
-            }
-        }
         
-        System.out.println("responce head: " + responseHeaders.toString());
-        System.out.println("responce body: " + body.toString());
+        System.out.println("responce head: \n" + responseHeaders.toString());
+        System.out.println("responce body: \n" + body.toString());
 	}
 		
 	
