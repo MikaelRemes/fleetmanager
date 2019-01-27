@@ -19,12 +19,13 @@ import com.sun.net.httpserver.HttpServer;
 
 import java.nio.charset.StandardCharsets;
 
+
 public class ConnectionHandler implements HttpHandler{
 	
 	private CarDatabaseHandler carHandler;
 	
 	// server port
-	static final int PORT = 8082;
+	static final int PORT = 8083;
 	
 	static final int maxOnlineTime = 60;														//server online for maximum of 1 minute
 	static int currentOnlineTime = 0;
@@ -33,18 +34,20 @@ public class ConnectionHandler implements HttpHandler{
 	boolean running=true;
 	
 	
-	public ConnectionHandler() {
-		carHandler = new CarDatabaseHandler();
+	public ConnectionHandler(CarDatabaseHandler carHandler) {
+		this.carHandler = carHandler;
 	}
 
 	public static void main(String[] args) {
 		try {
+			
+			CarDatabaseHandler carDatabaseHandler = new CarDatabaseHandler();
 
 			HttpServer server = HttpServer.create(new InetSocketAddress(PORT), 0);
 			
-			ConnectionHandler connection= new ConnectionHandler();
+			ConnectionHandler connection= new ConnectionHandler(carDatabaseHandler);
 							
-			server.createContext("/test", connection);													// write "http://localhost:8082/test" to connect
+			server.createContext("/test", connection);													// write "http://localhost:8083/test" to connect
 	        server.setExecutor(null); 																	// creates a default executor
 	        server.start();
 			
@@ -54,7 +57,7 @@ public class ConnectionHandler implements HttpHandler{
 				Thread.sleep(500);																		//setup time for connectionHandler
 				
 				if(connection.running==false) {															//once response has been done, creates new connectionhandler for next response
-					connection= new ConnectionHandler();
+					connection= new ConnectionHandler(carDatabaseHandler);
 					server.createContext("/test", connection);
 					connectionNumber++;
 					System.out.println("connection handler number " + connectionNumber + "online \n");
@@ -64,6 +67,8 @@ public class ConnectionHandler implements HttpHandler{
 				currentOnlineTime++;
 			}
 			
+			carDatabaseHandler.closeConnection();														//close connection to database
+			System.out.println("Closed connection to database");
 			
 			server.stop(1);
 			
@@ -90,11 +95,15 @@ public class ConnectionHandler implements HttpHandler{
 		carHandler.executeSQLQuery("DELETE FROM Cars WHERE Licence='" + car.getLicence() +"'");
 	}
 	
-	//displays the information of a particular car
-	private void displayCarInDatabase(Car car) {
-		ArrayList<Car> carList = carHandler.getCarListSQL("SELECT * FROM CARS WHERE Licence='" + car.getLicence() + "'");
-		for(Car carX : carList) {
-			System.out.println(carX.toString());
+	
+	
+	//gets an object copy of a car in database
+	private Car getCarInDatabase(String licence) {
+		try {
+			ArrayList<Car> carList = carHandler.getCarListSQL("SELECT * FROM CARS WHERE Licence='" + licence + "'");
+			return carList.get(0);
+		}catch(Exception e) {
+			return null;
 		}
 	}
 	
@@ -146,14 +155,14 @@ public class ConnectionHandler implements HttpHandler{
                 }
             }
             
-            exchange.getRequestBody().close();
+            
             System.out.println("connection body: \n" + requestBody.toString() + "\n");      
             
             
 
 			//client wishes to see a particular set of cars in database
 			if(requestMethod.equals("GET")) {
-				doGetCarResponse(exchange,requestHeaders, requestBody);
+				doGetCarResponse(exchange);
 			}
 			
 			//client wishes to add a car to database
@@ -176,19 +185,11 @@ public class ConnectionHandler implements HttpHandler{
 				
 			}
         
-            
+			exchange.getRequestBody().close();
+			
 		}catch(Exception e) {
 			e.printStackTrace();
 		} finally {
-			
-			try {
-				//TODO: these handled outside method
-				carHandler.closeConnection();
-				System.out.println("Closed connection to database");
-				
-			} catch (Exception e) {
-				System.err.println("Error closing connections: " + e.getMessage());
-			} 
 			
 			running=false;	
 			System.out.println("connection handler offline");
@@ -196,31 +197,64 @@ public class ConnectionHandler implements HttpHandler{
 	}
 	
 	
-	public void doGetCarResponse(HttpExchange exchange, StringBuilder requestHeaders, StringBuilder requestBody) throws IOException{
-		
-      
-        String responseBody = "Hello";
+	public void doGetCarResponse(HttpExchange exchange) {
+		try {
+			
+			int responseStatus = 200;
+			String responseBody = "";
+			
+			if(exchange.getRequestURI().getQuery() != null) {
+				try {
+					StringBuilder requestValues = new StringBuilder("");													//get the parameters of requested car
+					System.out.println(exchange.getRequestURI());
+					requestValues.append(exchange.getRequestURI());
+				
+					String requestedCarLicence = "";
+			
+					if(requestValues.indexOf("Licence") > 0) {
+						requestedCarLicence = requestValues.substring(requestValues.indexOf("Licence") + 8);
+					}
+					
+					Car requestedCar = getCarInDatabase(requestedCarLicence);
+					
+					if(requestedCar != null) {
+						responseBody = "The car you have requested is: " + requestedCar.toString();
+						responseStatus = 200;
+					}else {
+						responseBody = "";
+						responseStatus = 204;
+					}
+				}catch(Exception e) {
+					responseStatus = 400;
+					responseBody = "URI request parameters faulty";
+				}
+			}
+			
+			
         
-        Headers responseHeaders = exchange.getResponseHeaders();
-        responseHeaders.add("Content-type","text/plain");
+			Headers responseHeaders = exchange.getResponseHeaders();
+			responseHeaders.add("Content-type","text/plain");
         
 
-         exchange.sendResponseHeaders(200, responseBody.length() == 0 ? -1 : responseBody.length());					//if body length is 0 send -1 (no body), if not send body length
-         if (responseBody.length() > 0) {
-             try (BufferedOutputStream out = new BufferedOutputStream(exchange.getResponseBody())) {
-                 out.write(responseBody.getBytes("UTF-8"));
-             }
-         }
+			exchange.sendResponseHeaders(responseStatus, responseBody.length() == 0 ? -1 : responseBody.length());					//if body length is 0 send -1 (no body), if not send body length
+			if (responseBody.length() > 0) {
+				try (BufferedOutputStream out = new BufferedOutputStream(exchange.getResponseBody())) {
+					out.write(responseBody.getBytes("UTF-8"));
+				}
+			}
          
-         StringBuilder headers = new StringBuilder();
-         for (Map.Entry<String, List<String>> header : responseHeaders.entrySet()) {
-         	headers.append(header);
-         	headers.append("\n");
-         }
+			StringBuilder headers = new StringBuilder();
+			for (Map.Entry<String, List<String>> header : responseHeaders.entrySet()) {
+				headers.append(header);
+				headers.append("\n");
+			}
          
          
-         System.out.println("response head: \n" + headers.toString());
-         System.out.println("response body: \n" + responseBody.toString() + "\n");
+			System.out.println("response head: \n" + headers.toString());
+			System.out.println("response body: \n" + responseBody.toString() + "\n");
+		}catch(Exception e) {
+			e.printStackTrace();
+		}
 	}
 	
 	public void doPostCarResponse(HttpExchange exchange, Headers requestHeaders, StringBuilder body) throws IOException{

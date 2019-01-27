@@ -23,7 +23,7 @@ public class Car {
 	
 	@Override
 	public String toString() {
-		return brand + " " + model + " " + licence;
+		return brand + " " + model + " " + licence + " " + yearModel + " " + inspectionDate + " " + engineSize + " " + enginePower;
 	}
 
 	public String toQueryString() {
@@ -86,5 +86,6 @@ public class Car {
 	public void setEnginePower(int enginePower) {
 		this.enginePower = enginePower;
 	}
+	
 
 }

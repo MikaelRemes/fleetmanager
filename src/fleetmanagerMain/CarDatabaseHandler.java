@@ -51,6 +51,7 @@ public class CarDatabaseHandler {
 				cars.add(displaycar);
 			}
 		}catch(Exception e) {
+			System.out.println("Error in query: ");
 			e.printStackTrace();
 		}
 		
