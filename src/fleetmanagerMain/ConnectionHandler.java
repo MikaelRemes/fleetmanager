@@ -4,14 +4,13 @@ package fleetmanagerMain;
 import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Executors;
 
+
+import com.google.gson.Gson;
 import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
@@ -167,12 +166,12 @@ public class ConnectionHandler implements HttpHandler{
 			
 			//client wishes to add a car to database
 			if(requestMethod.equals("POST")) {
-				
+				doPostCarResponse(exchange, requestBody.toString());
 			}
 			
 			//client wishes to delete a car in database
 			if(requestMethod.equals("DELETE")) {
-				
+				doDeleteCarResponse(exchange, requestBody.toString());
 			}
 			
 			//client wishes to edit a car in database
@@ -200,7 +199,7 @@ public class ConnectionHandler implements HttpHandler{
 	public void doGetCarResponse(HttpExchange exchange) {
 		try {
 			
-			int responseStatus = 200;
+			int responseStatus = 400;
 			String responseBody = "";
 			
 			if(exchange.getRequestURI().getQuery() != null) {
@@ -233,7 +232,7 @@ public class ConnectionHandler implements HttpHandler{
 			
         
 			Headers responseHeaders = exchange.getResponseHeaders();
-			responseHeaders.add("Content-type","text/plain");
+			if(responseStatus==200 || responseStatus==400)responseHeaders.add("Content-type","text/plain");
         
 
 			exchange.sendResponseHeaders(responseStatus, responseBody.length() == 0 ? -1 : responseBody.length());					//if body length is 0 send -1 (no body), if not send body length
@@ -257,14 +256,92 @@ public class ConnectionHandler implements HttpHandler{
 		}
 	}
 	
-	public void doPostCarResponse(HttpExchange exchange, Headers requestHeaders, StringBuilder body) throws IOException{
+	public void doPostCarResponse(HttpExchange exchange, String requestBody) throws IOException{
 		
+		try {
+			int responseStatus = 400;
+			String responseBody = "";
+			
+			try {
+				Gson g = new Gson();
+				Car createdCar = g.fromJson(requestBody, Car.class);
+				addCarToDatabase(createdCar);
+				responseStatus = 201;
+				
+			}catch(Exception e) {
+				responseStatus = 400;
+				responseBody = "Error creating car";
+			}
+			
+			
+			Headers responseHeaders = exchange.getResponseHeaders();
+			if(responseStatus==400)responseHeaders.add("Content-type","text/plain");
+        
+
+			exchange.sendResponseHeaders(responseStatus, responseBody.length() == 0 ? -1 : responseBody.length());					//if body length is 0 send -1 (no body), if not send body length
+			if (responseBody.length() > 0) {
+				try (BufferedOutputStream out = new BufferedOutputStream(exchange.getResponseBody())) {
+					out.write(responseBody.getBytes("UTF-8"));
+				}
+			}
+         
+			StringBuilder headers = new StringBuilder();
+			for (Map.Entry<String, List<String>> header : responseHeaders.entrySet()) {
+				headers.append(header);
+				headers.append("\n");
+			}
+         
+         
+			System.out.println("response head: \n" + headers.toString());
+			System.out.println("response body: \n" + responseBody.toString() + "\n");
+			
+		}catch(Exception e) {
+			e.printStackTrace();
+		}
+	}
+	
+	public void doDeleteCarResponse(HttpExchange exchange, String requestBody) throws IOException{
 		
-        Headers responseHeaders = exchange.getResponseHeaders();
+		try {
+			int responseStatus = 400;
+			String responseBody = "";
+			
+			try {
+				Gson g = new Gson();
+				Car createdCar = g.fromJson(requestBody, Car.class);
+				removeCarFromDatabase(createdCar);
+				responseStatus = 204;
+				
+			}catch(Exception e) {
+				responseStatus = 400;
+				responseBody = "Error removing car";
+			}
+			
+			
+			Headers responseHeaders = exchange.getResponseHeaders();
+			if(responseStatus==400)responseHeaders.add("Content-type","text/plain");
         
-        
-        System.out.println("responce head: \n" + responseHeaders.toString());
-        System.out.println("responce body: \n" + body.toString());
+
+			exchange.sendResponseHeaders(responseStatus, responseBody.length() == 0 ? -1 : responseBody.length());					//if body length is 0 send -1 (no body), if not send body length
+			if (responseBody.length() > 0) {
+				try (BufferedOutputStream out = new BufferedOutputStream(exchange.getResponseBody())) {
+					out.write(responseBody.getBytes("UTF-8"));
+				}
+			}
+         
+			StringBuilder headers = new StringBuilder();
+			for (Map.Entry<String, List<String>> header : responseHeaders.entrySet()) {
+				headers.append(header);
+				headers.append("\n");
+			}
+         
+         
+			System.out.println("response head: \n" + headers.toString());
+			System.out.println("response body: \n" + responseBody.toString() + "\n");
+			
+		}catch(Exception e) {
+			e.printStackTrace();
+		}
 	}
 		
 	
