@@ -1,6 +1,5 @@
 package fleetmanagerMain;
 
-import java.util.Date;
 
 public class Car {
 	private String brand;

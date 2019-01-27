@@ -99,7 +99,7 @@ public class ConnectionHandler implements HttpHandler{
 	//gets an object copy of a car in database
 	private Car getCarInDatabase(String licence) {
 		try {
-			ArrayList<Car> carList = carHandler.getCarListSQL("SELECT * FROM CARS WHERE Licence='" + licence + "'");
+			ArrayList<Car> carList = carHandler.getCarListSQLQuery("SELECT * FROM CARS WHERE Licence='" + licence + "'");
 			return carList.get(0);
 		}catch(Exception e) {
 			return null;
@@ -113,7 +113,7 @@ public class ConnectionHandler implements HttpHandler{
 		if(!model.equals(""))sb.append(" AND Model='" + model + "'");
 		
 		
-		ArrayList<Car> carList = carHandler.getCarListSQL(sb.toString());
+		ArrayList<Car> carList = carHandler.getCarListSQLQuery(sb.toString());
 		for(Car car : carList) {
 			System.out.println(car.toString());
 		}
@@ -121,7 +121,7 @@ public class ConnectionHandler implements HttpHandler{
 	
 	//Lists all cars currently in database
 	private void listAllCars() {
-		ArrayList<Car> carList = carHandler.getCarListSQL("SELECT * FROM CARS");
+		ArrayList<Car> carList = carHandler.getCarListSQLQuery("SELECT * FROM CARS");
 		for(Car car : carList) {
 			System.out.println(car.toString());
 		}
@@ -315,6 +315,59 @@ public class ConnectionHandler implements HttpHandler{
 			}catch(Exception e) {
 				responseStatus = 400;
 				responseBody = "Error removing car";
+			}
+			
+			
+			Headers responseHeaders = exchange.getResponseHeaders();
+			if(responseStatus==400)responseHeaders.add("Content-type","text/plain");
+        
+
+			exchange.sendResponseHeaders(responseStatus, responseBody.length() == 0 ? -1 : responseBody.length());					//if body length is 0 send -1 (no body), if not send body length
+			if (responseBody.length() > 0) {
+				try (BufferedOutputStream out = new BufferedOutputStream(exchange.getResponseBody())) {
+					out.write(responseBody.getBytes("UTF-8"));
+				}
+			}
+         
+			StringBuilder headers = new StringBuilder();
+			for (Map.Entry<String, List<String>> header : responseHeaders.entrySet()) {
+				headers.append(header);
+				headers.append("\n");
+			}
+         
+         
+			System.out.println("response head: \n" + headers.toString());
+			System.out.println("response body: \n" + responseBody.toString() + "\n");
+			
+		}catch(Exception e) {
+			e.printStackTrace();
+		}
+	}
+	
+	public void doPatchCarResponse(HttpExchange exchange, String requestBody) throws IOException{
+		
+		try {
+			int responseStatus = 400;
+			String responseBody = "";
+			
+			try {
+				StringBuilder requestedCars = new StringBuilder(requestBody);
+				
+				String removedCarStringJson = requestedCars.substring(requestedCars.indexOf("{"), requestedCars.indexOf("}") + 1);
+				requestedCars.delete(requestedCars.indexOf("{"), requestedCars.indexOf("}") + 1);
+				
+				String createdCarStringJson = requestedCars.substring(requestedCars.indexOf("{"), requestedCars.indexOf("}") + 1);
+				requestedCars.delete(requestedCars.indexOf("{"), requestedCars.indexOf("}") + 1);
+				
+				Gson g = new Gson();
+				Car removedCar = g.fromJson(removedCarStringJson, Car.class);
+				Car createdCar = g.fromJson(createdCarStringJson, Car.class);
+				editCarInDatabase(removedCar, createdCar);
+				responseStatus = 204;
+				
+			}catch(Exception e) {
+				responseStatus = 400;
+				responseBody = "Error editing car";
 			}
 			
 			

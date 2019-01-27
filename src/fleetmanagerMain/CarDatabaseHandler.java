@@ -14,34 +14,36 @@ public class CarDatabaseHandler {
 	public CarDatabaseHandler() {
 		
 		try {
-			Class.forName("org.sqlite.JDBC"); 											//makes sure that sqlite is loaded and registered with system
-			conn = DriverManager.getConnection("jdbc:sqlite:CarDatabase.db");			//connects to database named "CarDatabase.db"
+			Class.forName("org.sqlite.JDBC"); 																//makes sure that sqlite is loaded and registered with system
+			conn = DriverManager.getConnection("jdbc:sqlite:CarDatabase.db");								//connects to database named "CarDatabase.db"
 			
 			System.out.println("connector connected to database successfully");								//connection to car database has been established
 					
 			
 		}catch(Exception e) {
-			System.out.println("connector did not connect to database");
+			System.out.println("connector did not connect to database");									//connection to database faulty
 			e.printStackTrace();
 		}
 	}
 	
 	
-	
-	public void executeSQLQuery(String query) {
+	//executes a specified SQL query, returns true if query ran without errors, returns false if query is unsuccessful
+	public boolean executeSQLQuery(String query) {
 		try{
-			this.statement = conn.createStatement();
-			statement.execute(query);
+			this.statement = conn.createStatement();														//prepares to run query
+			statement.execute(query);																		//runs a specified query
+			return true;
 			
 		}catch(Exception e) {
-			System.out.println("Error in query: ");
+			System.out.println("Error in query: ");															//error when running SQL query
 			e.printStackTrace();
+			return false;
 		}
 	}
 	
 	
-	
-	public ArrayList<Car> getCarListSQL(String query){
+	//executes a search query and returns the results of the query as an arraylist object which contains car objects
+	public ArrayList<Car> getCarListSQLQuery(String query){
 		ArrayList<Car> cars = new ArrayList<Car>();
 		try {
 			this.statement = conn.createStatement();
@@ -53,12 +55,14 @@ public class CarDatabaseHandler {
 		}catch(Exception e) {
 			System.out.println("Error in query: ");
 			e.printStackTrace();
+			
+			return null;
 		}
 		
 		return cars;
 	}
 	
-	
+	//closes connection to cardatabase
 	public void closeConnection() {
 		try {
 			conn.close();
