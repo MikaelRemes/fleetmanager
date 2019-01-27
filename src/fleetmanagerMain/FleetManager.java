@@ -1,44 +1,53 @@
 package fleetmanagerMain;
 
-import java.io.BufferedOutputStream;
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.io.PrintWriter;
-import java.net.ServerSocket;
-import java.net.Socket;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.StringTokenizer;
 
-public class FleetManager implements Runnable{
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.net.InetSocketAddress;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.Executors;
+
+import com.sun.net.httpserver.Headers;
+import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpHandler;
+import com.sun.net.httpserver.HttpServer;
+
+import java.nio.charset.StandardCharsets;
+
+public class FleetManager implements HttpHandler{
 	
 	private CarDatabaseHandler carHandler;
 	
 	// server port
-	static final int PORT = 8090;
+	static final int PORT = 8082;
+	
+	boolean running=true;
 	
 	
-	private ServerSocket server;
-	private Socket socket;
-	
-	public FleetManager(Socket socket, ServerSocket serverSocket) {
+	public FleetManager() {
 		carHandler = new CarDatabaseHandler();
-		this.socket=socket;
-		this.server=serverSocket;
 	}
 
 	public static void main(String[] args) {
 		try {
-			ServerSocket server = new ServerSocket(PORT);
+			HttpServer server = HttpServer.create(new InetSocketAddress(PORT), 0);
 			
-			FleetManager manager = new FleetManager(server.accept(),server);
-				
-			Thread thread = new Thread(manager);
-			thread.start();
+			FleetManager connection= new FleetManager();
+							
+			server.createContext("/test", connection);
+	        server.setExecutor(Executors.newFixedThreadPool(1)); 										// creates a default executor
+	        server.start();
 			
-			System.out.println("Server online");
+			System.out.println("Server online \n");
 			
+			while(connection.running) {
+				Thread.sleep(1000);
+			}
 			
+			server.stop(1);
 			
 		}catch(Exception e) {
 			e.printStackTrace();
@@ -92,65 +101,119 @@ public class FleetManager implements Runnable{
 		}
 	}
 	
+	//handles http requests and sends appropritate response
 	@Override
-	public void run() {
-		BufferedReader in = null;
-		PrintWriter out = null;
-		BufferedOutputStream dataOut = null;
-		
+	public void handle(HttpExchange exchange) {		
 		try {
 			
-			// input stream
-			in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+			String requestMethod = exchange.getRequestMethod();
 			
-			//output stream for headers
-			out = new PrintWriter(socket.getOutputStream());
+			System.out.println("Exchange request method: " + requestMethod + "\n");														//Checks the request method, POST,GET,DELETE etc.
 			
-			// output stream for requested data
-			dataOut = new BufferedOutputStream(socket.getOutputStream());
+			StringBuilder headers = new StringBuilder();
+            Headers requestHeaders = exchange.getRequestHeaders();																	//Gets the headers of the http request
+            for (Map.Entry<String, List<String>> header : requestHeaders.entrySet()) {
+                headers.append(header);
+                headers.append("\n");
+            }
+            
+            System.out.println("connection headers: \n" + headers.toString());
 			
-			//get first line of the request from the client (HTTP method)
-			String input = in.readLine();
-			System.out.println(input);
-				
-			//request parsing
-			StringTokenizer parse = new StringTokenizer(input);
-				
-			//HTTP method of the client
-			String method = parse.nextToken().toUpperCase(); 
-				
-				
-			// GET method
-			if (method.equals("GET")) {
-				
-				
-					System.out.println("GET method successful");
-						
-				}
+			StringBuilder body = new StringBuilder();																				//Gets the body of the http request
+            try (InputStreamReader reader = new InputStreamReader(exchange.getRequestBody(), StandardCharsets.UTF_8.name())) {
+                char[] buffer = new char[256];
+                int read;
+                while ((read = reader.read(buffer)) != -1) {
+                    body.append(buffer, 0, read);
+                }
+            }
+            
+            exchange.getRequestBody().close();
+            System.out.println("connection body: \n" + body.toString() + "\n");      
+            
+            
+
+			//client wishes to see a particular set of cars in database
+			if(requestMethod.equals("GET")) {
+				doGetCarResponse(exchange,body);
+			}
 			
+			//client wishes to add a car to database
+			if(requestMethod.equals("POST")) {
+				
+			}
 			
+			//client wishes to delete a car in database
+			if(requestMethod.equals("DELETE")) {
+				
+			}
+			
+			//client wishes to edit a car in database
+			if(requestMethod.equals("PATCH")) {
+				
+			}
+			
+			//invalid request
+			if(!requestMethod.equals("PATCH") && !requestMethod.equals("DELETE") && !requestMethod.equals("POST") && !requestMethod.equals("GET")) {
+				
+			}
+        
+            
 		}catch(Exception e) {
 			e.printStackTrace();
 		} finally {
+			
 			try {
-				//close all connections of FleetManager
-				in.close();
-				out.close();
-				dataOut.close();
-				socket.close();
-				
-				//TODO: these handled outside run-method
-				server.close();
+				//TODO: these handled outside method
 				carHandler.closeConnection();
 				
 			} catch (Exception e) {
-				System.err.println("Error closing stream : " + e.getMessage());
+				System.err.println("Error closing connections: " + e.getMessage());
 			} 
+			
+			running=false;	
 			System.out.println("Server offline");
 		}
 	}
 	
 	
+	public void doGetCarResponse(HttpExchange exchange, StringBuilder body) throws IOException{
+		
+		 Headers requestHeaders = exchange.getRequestHeaders();
+         Headers responseHeaders = exchange.getResponseHeaders();
+         for (Map.Entry<String, List<String>> header : requestHeaders.entrySet()) {
+             responseHeaders.put(header.getKey(), header.getValue());
+         }
+         
+         exchange.sendResponseHeaders(200, body.length() == 0 ? -1 : body.length());
+         if (body.length() > 0) {
+             try (OutputStream out = exchange.getResponseBody()) {
+                 out.write(body.toString().getBytes(StandardCharsets.UTF_8.name()));
+             }
+         }
+         
+         System.out.println("responce head: " + responseHeaders.toString());
+         System.out.println("responce body: " + body.toString());
+	}
+	
+	public void doPostCarResponse(HttpExchange exchange, StringBuilder body) throws IOException{
+		
+		Headers requestHeaders = exchange.getRequestHeaders();
+        Headers responseHeaders = exchange.getResponseHeaders();
+        for (Map.Entry<String, List<String>> header : requestHeaders.entrySet()) {
+            responseHeaders.put(header.getKey(), header.getValue());
+        }
+        
+        exchange.sendResponseHeaders(200, body.length() == 0 ? -1 : body.length());
+        if (body.length() > 0) {
+            try (OutputStream out = exchange.getResponseBody()) {
+                out.write(body.toString().getBytes(StandardCharsets.UTF_8.name()));
+            }
+        }
+        
+        System.out.println("responce head: " + responseHeaders.toString());
+        System.out.println("responce body: " + body.toString());
+	}
 		
 	
 

@@ -17,11 +17,11 @@ public class CarDatabaseHandler {
 			Class.forName("org.sqlite.JDBC"); 											//makes sure that sqlite is loaded and registered with system
 			conn = DriverManager.getConnection("jdbc:sqlite:CarDatabase.db");			//connects to database named "CarDatabase.db"
 			
-			System.out.println("connection successful");								//connection to car database has been established
+			System.out.println("connection to database successful");								//connection to car database has been established
 					
 			
 		}catch(Exception e) {
-			System.out.println("connection unsuccessful");
+			System.out.println("connection to database unsuccessful");
 			e.printStackTrace();
 		}
 	}
