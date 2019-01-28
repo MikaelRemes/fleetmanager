@@ -21,55 +21,55 @@ import java.nio.charset.StandardCharsets;
 
 public class ConnectionHandler implements HttpHandler{
 	
-	private CarDatabaseHandler carHandler;
+	private CarDatabaseHandler carHandler;																// object which handles connections to car database within the API
 	
-	// server port
-	static final int PORT = 8083;
+	static final int PORT = 8083;																		// server PORT address
 	
-	static final int maxOnlineTime = 60;														//server online for maximum of 1 minute
-	static int currentOnlineTime = 0;
-	static int connectionNumber = 1;															//How many connections have been made
+	static final int maxOnlineTime = 60;																// server online for maximum of 1 minute
+	static int currentOnlineTime = 0;																	// clock for server online time
+	static int connectionNumber = 1;																	// How many connections/requests have been made
 	
 	boolean running=true;
 	
 	
 	public ConnectionHandler(CarDatabaseHandler carHandler) {
-		this.carHandler = carHandler;
+		this.carHandler = carHandler;																	
 	}
 
 	public static void main(String[] args) {
 		try {
 			
-			CarDatabaseHandler carDatabaseHandler = new CarDatabaseHandler();
+			CarDatabaseHandler carDatabaseHandler = new CarDatabaseHandler();							// creates a connection to database which holds cars
 
-			HttpServer server = HttpServer.create(new InetSocketAddress(PORT), 0);
+			HttpServer server = HttpServer.create(new InetSocketAddress(PORT), 0);						// creates the http server to port address PORT
 			
-			ConnectionHandler connection= new ConnectionHandler(carDatabaseHandler);
+			ConnectionHandler connection= new ConnectionHandler(carDatabaseHandler);					// creates a thread which handles the next httprequest
 							
-			server.createContext("/test", connection);													// write "http://localhost:8083/test" to connect
+			server.createContext("/test", connection);													// adds the thread to http server
+																										// write "http://localhost:8083/test" to connect
 	        server.setExecutor(null); 																	// creates a default executor
-	        server.start();
-			
+	        server.start();																				
+	        
+	        
 			System.out.println("connection handler number " + connectionNumber + " online \n");
 			
-			while(currentOnlineTime <= maxOnlineTime) {
-				Thread.sleep(500);																		//setup time for connectionHandler
+			while(currentOnlineTime <= maxOnlineTime) {													
+				Thread.sleep(1000);																		// setup time for connectionHandler and a clock for server online time
 				
-				if(connection.running==false) {															//once response has been done, creates new connectionhandler for next response
-					connection= new ConnectionHandler(carDatabaseHandler);
-					server.createContext("/test", connection);
+				if(connection.running==false) {															// once response has been done, creates new connectionhandler thread for next response
+					connection= new ConnectionHandler(carDatabaseHandler);								// creates a new connectionhandler thread
+					server.createContext("/test", connection);											// adds it to http server
 					connectionNumber++;
-					System.out.println("connection handler number " + connectionNumber + "online \n");
+					System.out.println("connection handler number " + connectionNumber + " online \n");
 				}
 				
-				Thread.sleep(500);																		//setup time for connectionHandler
-				currentOnlineTime++;
+				currentOnlineTime++;																	// increment clock
 			}
 			
-			carDatabaseHandler.closeConnection();														//close connection to database
+			carDatabaseHandler.closeConnection();														// close connection to database which holds cars
 			System.out.println("Closed connection to database");
 			
-			server.stop(1);
+			server.stop(1);																				// closes http server after timer has ran out
 			
 		}catch(Exception e) {
 			e.printStackTrace();
@@ -106,25 +106,20 @@ public class ConnectionHandler implements HttpHandler{
 		}
 	}
 	
-	//displays the information of a particular set of cars
-	private void displayCarListInDatabase(int yearModelMin, int yearModelMax, String brand, String model) {
-		StringBuilder sb = new StringBuilder("SELECT * FROM CARS WHERE Yearmodel BETWEEN " + yearModelMin + " AND " + yearModelMax);		//creates a string with matching parameters for a SQL query
+	//gets an ArrayList copy of a particular set of cars
+	private ArrayList<Car> getCarListInDatabase(int yearModelMin, int yearModelMax, String brand, String model) {
+		StringBuilder sb = new StringBuilder("SELECT * FROM CARS WHERE (Yearmodel BETWEEN " + yearModelMin + " AND " + yearModelMax + ")");		//creates a string with matching parameters for a SQL query
 		if(!brand.equals(""))sb.append(" AND Brand='" + brand + "'");
 		if(!model.equals(""))sb.append(" AND Model='" + model + "'");
 		
 		
 		ArrayList<Car> carList = carHandler.getCarListSQLQuery(sb.toString());
-		for(Car car : carList) {
-			System.out.println(car.toString());
-		}
+		return carList;
 	}
 	
 	//Lists all cars currently in database
-	private void listAllCars() {
-		ArrayList<Car> carList = carHandler.getCarListSQLQuery("SELECT * FROM CARS");
-		for(Car car : carList) {
-			System.out.println(car.toString());
-		}
+	private ArrayList<Car> getAllCars() {
+		return carHandler.getCarListSQLQuery("SELECT * FROM CARS");
 	}
 	
 	//handles http requests and sends appropritate response
@@ -202,22 +197,60 @@ public class ConnectionHandler implements HttpHandler{
 			int responseStatus = 400;
 			String responseBody = "";
 			
+			
 			if(exchange.getRequestURI().getQuery() != null) {
 				try {
 					StringBuilder requestValues = new StringBuilder("");													//get the parameters of requested car
-					System.out.println(exchange.getRequestURI());
-					requestValues.append(exchange.getRequestURI());
-				
-					String requestedCarLicence = "";
-			
-					if(requestValues.indexOf("Licence") > 0) {
-						requestedCarLicence = requestValues.substring(requestValues.indexOf("Licence") + 8);
+					System.out.println("Request parameters: " + exchange.getRequestURI().getQuery());
+					requestValues.append(exchange.getRequestURI().getQuery());
+					
+					String licenceValue = "";
+					int YearMax = 3000;
+					int YearMin = 0;
+					String Brand = "";
+					String Model = "";
+					ArrayList<Car> requestedCars = new ArrayList<Car>();
+					
+					
+					
+					if(requestValues.indexOf("GetAllCars") != -1) {
+						requestedCars = getAllCars();
+					}else if(requestValues.indexOf("Licence") != -1) {
+						licenceValue = requestValues.substring(requestValues.indexOf("Licence") + 8);
+						requestedCars.add(getCarInDatabase(licenceValue));
+					}else {
+						if(requestValues.indexOf("YearMin") != -1) {
+							if(requestValues.indexOf("&", requestValues.indexOf("YearMin")) != -1) {
+								YearMin = Integer.valueOf(requestValues.substring(requestValues.indexOf("YearMin") + 8, requestValues.indexOf("&", requestValues.indexOf("YearMin"))));
+								requestValues.delete(requestValues.indexOf("YearMin"), requestValues.indexOf("&", requestValues.indexOf("YearMin")) + 1);
+							}else YearMin = Integer.valueOf(requestValues.substring(requestValues.indexOf("YearMin") + 8));
+						}
+						if(requestValues.indexOf("YearMax") != -1) {
+							if(requestValues.indexOf("&", requestValues.indexOf("YearMax")) != -1) {
+								YearMax = Integer.valueOf(requestValues.substring(requestValues.indexOf("YearMax") + 8, requestValues.indexOf("&", requestValues.indexOf("YearMax"))));
+								requestValues.delete(requestValues.indexOf("YearMax"), requestValues.indexOf("&", requestValues.indexOf("YearMax")) + 1);
+							}else YearMax = Integer.valueOf(requestValues.substring(requestValues.indexOf("YearMax") + 8));
+						}
+						if(requestValues.indexOf("Brand") != -1) {
+							if(requestValues.indexOf("&", requestValues.indexOf("Brand")) != -1) {
+								Brand = requestValues.substring(requestValues.indexOf("Brand") + 6, requestValues.indexOf("&", requestValues.indexOf("Brand")));
+								requestValues.delete(requestValues.indexOf("Brand"), requestValues.indexOf("&", requestValues.indexOf("Brand")) + 1);
+							}else Brand = requestValues.substring(requestValues.indexOf("Brand") + 6);
+						}
+						if(requestValues.indexOf("Model") != -1) {
+							if(requestValues.indexOf("&", requestValues.indexOf("Model")) != -1) {
+								Model = requestValues.substring(requestValues.indexOf("Model") + 6, requestValues.indexOf("&", requestValues.indexOf("Model")));
+								requestValues.delete(requestValues.indexOf("Model"), requestValues.indexOf("&", requestValues.indexOf("Model")) + 1);
+							}else Model = requestValues.substring(requestValues.indexOf("Model") + 6);
+						}
+						requestedCars = getCarListInDatabase(YearMin, YearMax, Brand, Model);
 					}
 					
-					Car requestedCar = getCarInDatabase(requestedCarLicence);
+
 					
-					if(requestedCar != null) {
-						responseBody = "The car you have requested is: " + requestedCar.toString();
+					if(requestedCars != null && requestedCars.size() != 0) {
+						Gson g = new Gson();
+						responseBody = g.toJson(requestedCars);
 						responseStatus = 200;
 					}else {
 						responseBody = "";
@@ -232,7 +265,8 @@ public class ConnectionHandler implements HttpHandler{
 			
         
 			Headers responseHeaders = exchange.getResponseHeaders();
-			if(responseStatus==200 || responseStatus==400)responseHeaders.add("Content-type","text/plain");
+			if(responseStatus==200)responseHeaders.add("Content-type","application/json");
+			if(responseStatus==400)responseHeaders.add("Content-type","text/plain");
         
 
 			exchange.sendResponseHeaders(responseStatus, responseBody.length() == 0 ? -1 : responseBody.length());					//if body length is 0 send -1 (no body), if not send body length
