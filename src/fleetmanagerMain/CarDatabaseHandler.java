@@ -17,27 +17,27 @@ public class CarDatabaseHandler {
 			Class.forName("org.sqlite.JDBC"); 																//makes sure that sqlite is loaded and registered with system
 			conn = DriverManager.getConnection("jdbc:sqlite:CarDatabase.db");								//connects to database named "CarDatabase.db"
 			
-			System.out.println("connected to database successfully");								//connection to car database has been established
+			System.out.println("connected to database successfully");										//connection to car database has been established
 					
 			
 		}catch(Exception e) {
-			System.out.println("did not connect to database");									//connection to database faulty
+			System.out.println("did not connect to database");												//connection to database faulty
 			e.printStackTrace();
 		}
 	}
 	
 	
-	//executes a specified SQL query, returns true if query ran without errors, returns false if query is unsuccessful
-	public boolean executeSQLQuery(String query) {
+	//executes a specified SQL query, returns 0 if query ran without errors, returns -1 if query is unsuccessful
+	public int executeSQLQuery(String query) {
 		try{
 			this.statement = conn.createStatement();														//prepares to run query
 			statement.execute(query);																		//runs a specified query
-			return true;
+			return 0;
 			
 		}catch(Exception e) {
 			System.out.println("Error in query: ");															//error when running SQL query
 			e.printStackTrace();
-			return false;
+			return -1;
 		}
 	}
 	
@@ -56,7 +56,7 @@ public class CarDatabaseHandler {
 			System.out.println("Error in query: ");
 			e.printStackTrace();
 			
-			return null;
+			return cars;
 		}
 		
 		return cars;

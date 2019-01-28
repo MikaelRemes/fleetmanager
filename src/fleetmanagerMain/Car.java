@@ -9,7 +9,12 @@ public class Car {
 	private String inspectionDate;
 	private int engineSize;
 	private int enginePower;
-
+	
+	//constructor
+	//null string values for missing string parameters
+	//integer values 0 when missing parameters
+	//licence cannot be null, it is the primary key value!!
+	//TODO: check licence value and throw exception
 	public Car(String brand, String model, String licence, int yearModel, String inspectionDate, int engineSize, int enginePower) {
 		this.brand=brand;
 		this.model=model;
@@ -20,13 +25,43 @@ public class Car {
 		this.enginePower=enginePower;
 	}
 	
-	@Override
-	public String toString() {
-		return brand + " " + model + " " + licence + " " + yearModel + " " + inspectionDate + " " + engineSize + " " + enginePower;
-	}
 
-	public String toQueryString() {
-		return "'" + brand + "','" + model + "','" + licence + "','" + yearModel + "','" + inspectionDate + "','" + engineSize + "','" + enginePower + "'";
+	public String toAdditionQueryString() {
+		StringBuilder carQueryString = new StringBuilder("");
+		StringBuilder valuesQueryString = new StringBuilder("");
+		if(brand != null) {
+			carQueryString.append("'" + brand + "',");
+			valuesQueryString.append("Brand,");
+		}
+		if(model != null) {
+			carQueryString.append("'" + model + "',");
+			valuesQueryString.append("Model,");
+		}
+		if(licence != null) {
+			carQueryString.append("'" + licence + "',");
+			valuesQueryString.append("Licence,");
+		}
+		if(yearModel != 0) {
+			carQueryString.append("'" + yearModel + "',");
+			valuesQueryString.append("Yearmodel,");
+		}
+		if(inspectionDate != null) {
+			carQueryString.append("'" + inspectionDate + "',");
+			valuesQueryString.append("Inspection,");
+		}
+		if(engineSize != 0) {
+			carQueryString.append("'" + engineSize + "',");
+			valuesQueryString.append("EngineSize,");
+		}
+		if(enginePower != 0) {
+			carQueryString.append("'" + enginePower + "',");
+			valuesQueryString.append("EnginePower,");
+		}
+		
+		carQueryString.deleteCharAt(carQueryString.length() - 1);
+		valuesQueryString.deleteCharAt(valuesQueryString.length()-1);
+		
+		return "INSERT INTO Cars (" + valuesQueryString.toString() +") VALUES (" + carQueryString.toString() + ")";
 	}
 
 

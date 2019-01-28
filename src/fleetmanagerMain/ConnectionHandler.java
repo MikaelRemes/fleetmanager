@@ -27,7 +27,6 @@ public class ConnectionHandler implements HttpHandler{
 	
 	static final int maxOnlineTime = 60;																// server online for maximum of 1 minute
 	static int currentOnlineTime = 0;																	// clock for server online time
-	static int connectionNumber = 1;																	// How many connections/requests have been made
 	
 	boolean running=true;
 	
@@ -35,7 +34,10 @@ public class ConnectionHandler implements HttpHandler{
 	public ConnectionHandler(CarDatabaseHandler carHandler) {
 		this.carHandler = carHandler;																	
 	}
-
+	
+	/**
+	 * Starts the server.
+	 */
 	public static void main(String[] args) {
 		try {
 			
@@ -51,17 +53,10 @@ public class ConnectionHandler implements HttpHandler{
 	        server.start();																				
 	        
 	        
-			System.out.println("connection handler number " + connectionNumber + " online \n");
+			System.out.println("server and connection handler online \n");
 			
 			while(currentOnlineTime <= maxOnlineTime) {													
 				Thread.sleep(1000);																		// setup time for connectionHandler and a clock for server online time
-				
-				if(connection.running==false) {															// once response has been done, creates new connectionhandler thread for next response
-					connection= new ConnectionHandler(carDatabaseHandler);								// creates a new connectionhandler thread
-					server.createContext("/test", connection);											// adds it to http server
-					connectionNumber++;
-					System.out.println("connection handler number " + connectionNumber + " online \n");
-				}
 				
 				currentOnlineTime++;																	// increment clock
 			}
@@ -78,46 +73,59 @@ public class ConnectionHandler implements HttpHandler{
 	}
 	
 	//adds car to database
-	private void addCarToDatabase(Car car) {
-		carHandler.executeSQLQuery("INSERT INTO Cars (Brand,Model,Licence,Yearmodel,Inspection,EngineSize,EnginePower) VALUES (" + car.toQueryString() + ")");
+	//returns 0 if addition to database was successful
+	//returns -1 if addition to database was unsuccessful
+	private int addCarToDatabase(Car car) {
+		return carHandler.executeSQLQuery(car.toAdditionQueryString());
 	}
 	
 	//edits values of a car in database
 	//by replacing a car object in database with another car
-	private void editCarInDatabase(Car previousCar, Car nextCar) {
-		removeCarFromDatabase(previousCar);
-		addCarToDatabase(nextCar);
+	//returns 0 if edit in database was successful
+	//returns -1 if edit in database was unsuccessful
+	//TODO: if previousCar cannot be removed from database and neither can nextCar, both versions will stay in database, bad outcome
+	private int editCarInDatabase(Car previousCar, Car nextCar) {
+		if(addCarToDatabase(nextCar) == 0) {
+			if(removeCarFromDatabase(previousCar) == 0) {
+				return 0;
+			}else {
+				removeCarFromDatabase(nextCar);
+				return -1;
+			}
+		}
+		else return -1;
 	}
 	
 	//removes a car from database
-	private void removeCarFromDatabase(Car car) {
-		carHandler.executeSQLQuery("DELETE FROM Cars WHERE Licence='" + car.getLicence() +"'");
+	//returns 0 if removal from database was successful
+	//returns -1 if removal from database was unsuccessful
+	private int removeCarFromDatabase(Car car) {
+		return carHandler.executeSQLQuery("DELETE FROM Cars WHERE Licence='" + car.getLicence() +"'");
 	}
 	
 	
 	
 	//gets an object copy of a car in database
+	//returns null if car is not in database
 	private Car getCarInDatabase(String licence) {
-		try {
-			ArrayList<Car> carList = carHandler.getCarListSQLQuery("SELECT * FROM CARS WHERE Licence='" + licence + "'");
-			return carList.get(0);
-		}catch(Exception e) {
-			return null;
-		}
+		ArrayList<Car> carList = carHandler.getCarListSQLQuery("SELECT * FROM CARS WHERE Licence='" + licence + "'");
+		if(carList.size() > 0)return carList.get(0);
+		else return null;
 	}
 	
 	//gets an ArrayList copy of a particular set of cars
+	//returns empty ArrayList if no such cars is in database
 	private ArrayList<Car> getCarListInDatabase(int yearModelMin, int yearModelMax, String brand, String model) {
 		StringBuilder sb = new StringBuilder("SELECT * FROM CARS WHERE (Yearmodel BETWEEN " + yearModelMin + " AND " + yearModelMax + ")");		//creates a string with matching parameters for a SQL query
-		if(!brand.equals(""))sb.append(" AND Brand='" + brand + "'");
-		if(!model.equals(""))sb.append(" AND Model='" + model + "'");
-		
+		if(!brand.equals("") && brand != null)sb.append(" AND Brand='" + brand + "'");
+		if(!model.equals("") && model != null)sb.append(" AND Model='" + model + "'");
 		
 		ArrayList<Car> carList = carHandler.getCarListSQLQuery(sb.toString());
 		return carList;
 	}
 	
 	//Lists all cars currently in database
+	//returns empty list if no cars in database
 	private ArrayList<Car> getAllCars() {
 		return carHandler.getCarListSQLQuery("SELECT * FROM CARS");
 	}
@@ -132,7 +140,7 @@ public class ConnectionHandler implements HttpHandler{
 			System.out.println("Exchange request method: " + requestMethod + "\n");														//Checks the request method, POST,GET,DELETE etc.
 			
 			StringBuilder requestHeaders = new StringBuilder();
-            Headers headers = exchange.getRequestHeaders();																		//Gets the headers of the http request
+            Headers headers = exchange.getRequestHeaders();																				//Gets the headers of the http request
             for (Map.Entry<String, List<String>> header : headers.entrySet()) {
             	requestHeaders.append(header);
             	requestHeaders.append("\n");
@@ -171,55 +179,59 @@ public class ConnectionHandler implements HttpHandler{
 			
 			//client wishes to edit a car in database
 			if(requestMethod.equals("PATCH")) {
-				
+				doPatchCarResponse(exchange, requestBody.toString());
 			}
 			
-			//invalid request
+			//TODO: invalid request
 			if(!requestMethod.equals("PATCH") && !requestMethod.equals("DELETE") && !requestMethod.equals("POST") && !requestMethod.equals("GET")) {
 				
 			}
-        
+			
+			//close input stream after handling request
 			exchange.getRequestBody().close();
 			
 		}catch(Exception e) {
 			e.printStackTrace();
-		} finally {
-			
-			running=false;	
-			System.out.println("connection handler offline");
+		} finally {	
+			System.out.println("\n REQUEST HANDLED! \n");
 		}
 	}
 	
-	
+	/**
+	 * Handles GET-request response
+	 */
 	public void doGetCarResponse(HttpExchange exchange) {
 		try {
 			
-			int responseStatus = 400;
-			String responseBody = "";
+			int responseStatus = 204;																						//assigns initial value to response status
+			String responseBody = "";																						//assigns initial value to response body
 			
 			
 			if(exchange.getRequestURI().getQuery() != null) {
 				try {
-					StringBuilder requestValues = new StringBuilder("");													//get the parameters of requested car
-					System.out.println("Request parameters: " + exchange.getRequestURI().getQuery());
-					requestValues.append(exchange.getRequestURI().getQuery());
+					StringBuilder requestValues = new StringBuilder("");													//StringBuilder for the parameters of requested car
+					System.out.println("Request parameters: " + exchange.getRequestURI().getQuery());						//print the parameters of requested car for debug purposes
+					requestValues.append(exchange.getRequestURI().getQuery());												//get the parameters of requested car
 					
-					String licenceValue = "";
-					int YearMax = 3000;
-					int YearMin = 0;
-					String Brand = "";
-					String Model = "";
-					ArrayList<Car> requestedCars = new ArrayList<Car>();
+					String licenceValue = "";																				//basic value for licence if query does not specify it
+					int YearMax = 2100;																						//basic value for maximum year of car model if query does not specify it
+					int YearMin = 1900;																						//basic value for minimum year of car model if query does not specify it
+					String Brand = "";																						//basic value for car brand if query does not specify it
+					String Model = "";																						//basic value for car model if query does not specify it
 					
+					ArrayList<Car> requestedCars = new ArrayList<Car>();													//ArrayList of requested cars which will be returned to client
 					
-					
-					if(requestValues.indexOf("GetAllCars") != -1) {
+					if(requestValues.indexOf("GetAllCars") == -1 && requestValues.indexOf("Licence") == -1 && requestValues.indexOf("YearMin") == -1 && requestValues.indexOf("YearMax") == -1
+							&& requestValues.indexOf("Brand") == -1 && requestValues.indexOf("Model") == -1) {
+						throw new IllegalArgumentException("query does not contain legal parameters");						//breaks try catch block if query is invalid or has invalid parameters
+					}
+					if(requestValues.indexOf("GetAllCars") != -1) {															//if query has "GetAllCars" in it, returns a list which contains all cars in database
 						requestedCars = getAllCars();
-					}else if(requestValues.indexOf("Licence") != -1) {
-						licenceValue = requestValues.substring(requestValues.indexOf("Licence") + 8);
+					}else if(requestValues.indexOf("Licence") != -1) {														// if query has "Licence" in it, returns a list which contains
+						licenceValue = requestValues.substring(requestValues.indexOf("Licence") + 8);						// one specified car in database
 						requestedCars.add(getCarInDatabase(licenceValue));
-					}else {
-						if(requestValues.indexOf("YearMin") != -1) {
+					}else {																									//if query has any other specifications, return a list depending on those specifications
+						if(requestValues.indexOf("YearMin") != -1) {														
 							if(requestValues.indexOf("&", requestValues.indexOf("YearMin")) != -1) {
 								YearMin = Integer.valueOf(requestValues.substring(requestValues.indexOf("YearMin") + 8, requestValues.indexOf("&", requestValues.indexOf("YearMin"))));
 								requestValues.delete(requestValues.indexOf("YearMin"), requestValues.indexOf("&", requestValues.indexOf("YearMin")) + 1);
@@ -248,7 +260,7 @@ public class ConnectionHandler implements HttpHandler{
 					
 
 					
-					if(requestedCars != null && requestedCars.size() != 0) {
+					if(requestedCars != null && requestedCars.size() != 0 && requestedCars.get(0) != null) {
 						Gson g = new Gson();
 						responseBody = g.toJson(requestedCars);
 						responseStatus = 200;
@@ -264,19 +276,21 @@ public class ConnectionHandler implements HttpHandler{
 			
 			
         
-			Headers responseHeaders = exchange.getResponseHeaders();
+			Headers responseHeaders = exchange.getResponseHeaders();																//sends content type as http header
 			if(responseStatus==200)responseHeaders.add("Content-type","application/json");
 			if(responseStatus==400)responseHeaders.add("Content-type","text/plain");
         
 
 			exchange.sendResponseHeaders(responseStatus, responseBody.length() == 0 ? -1 : responseBody.length());					//if body length is 0 send -1 (no body), if not send body length
-			if (responseBody.length() > 0) {
+																																	//http body length header
+			
+			if (responseBody.length() > 0) {																						//if response has a body, send it
 				try (BufferedOutputStream out = new BufferedOutputStream(exchange.getResponseBody())) {
 					out.write(responseBody.getBytes("UTF-8"));
 				}
 			}
          
-			StringBuilder headers = new StringBuilder();
+			StringBuilder headers = new StringBuilder();																			//create a string of headers for debugging purpuses
 			for (Map.Entry<String, List<String>> header : responseHeaders.entrySet()) {
 				headers.append(header);
 				headers.append("\n");
@@ -293,14 +307,14 @@ public class ConnectionHandler implements HttpHandler{
 	public void doPostCarResponse(HttpExchange exchange, String requestBody) throws IOException{
 		
 		try {
-			int responseStatus = 400;
-			String responseBody = "";
+			int responseStatus = 400;																									//assigns initial value to response status
+			String responseBody = "";																									//assigns initial value to response body
 			
 			try {
 				Gson g = new Gson();
 				Car createdCar = g.fromJson(requestBody, Car.class);
-				addCarToDatabase(createdCar);
-				responseStatus = 201;
+				if(addCarToDatabase(createdCar)==0)responseStatus = 201;																//car created successfully, http response 201
+				else throw new IllegalArgumentException("could not add new car-object to database");									//breaks try catch block if addition to database is unsuccessful 
 				
 			}catch(Exception e) {
 				responseStatus = 400;
@@ -313,13 +327,15 @@ public class ConnectionHandler implements HttpHandler{
         
 
 			exchange.sendResponseHeaders(responseStatus, responseBody.length() == 0 ? -1 : responseBody.length());					//if body length is 0 send -1 (no body), if not send body length
-			if (responseBody.length() > 0) {
+																																	//http body length header
+			
+			if (responseBody.length() > 0) {																						//if response has a body, send it
 				try (BufferedOutputStream out = new BufferedOutputStream(exchange.getResponseBody())) {
 					out.write(responseBody.getBytes("UTF-8"));
 				}
 			}
          
-			StringBuilder headers = new StringBuilder();
+			StringBuilder headers = new StringBuilder();																			//create a string of headers for debugging purpuses
 			for (Map.Entry<String, List<String>> header : responseHeaders.entrySet()) {
 				headers.append(header);
 				headers.append("\n");
@@ -337,14 +353,14 @@ public class ConnectionHandler implements HttpHandler{
 	public void doDeleteCarResponse(HttpExchange exchange, String requestBody) throws IOException{
 		
 		try {
-			int responseStatus = 400;
-			String responseBody = "";
+			int responseStatus = 400;																								//assigns initial value to response status
+			String responseBody = "";																								//assigns initial value to response body
 			
 			try {
 				Gson g = new Gson();
 				Car createdCar = g.fromJson(requestBody, Car.class);
-				removeCarFromDatabase(createdCar);
-				responseStatus = 204;
+				if(removeCarFromDatabase(createdCar)==0)responseStatus = 204;														//car removed successfully, http response 201
+				else throw new IllegalArgumentException("could not remove car-object to database");									//breaks try catch block if removal from database is unsuccessful 
 				
 			}catch(Exception e) {
 				responseStatus = 400;
@@ -357,13 +373,14 @@ public class ConnectionHandler implements HttpHandler{
         
 
 			exchange.sendResponseHeaders(responseStatus, responseBody.length() == 0 ? -1 : responseBody.length());					//if body length is 0 send -1 (no body), if not send body length
-			if (responseBody.length() > 0) {
+			
+			if (responseBody.length() > 0) {																						//if response has a body, send it
 				try (BufferedOutputStream out = new BufferedOutputStream(exchange.getResponseBody())) {
 					out.write(responseBody.getBytes("UTF-8"));
 				}
 			}
          
-			StringBuilder headers = new StringBuilder();
+			StringBuilder headers = new StringBuilder();																			//create a string of headers for debugging purpuses
 			for (Map.Entry<String, List<String>> header : responseHeaders.entrySet()) {
 				headers.append(header);
 				headers.append("\n");
@@ -381,23 +398,23 @@ public class ConnectionHandler implements HttpHandler{
 	public void doPatchCarResponse(HttpExchange exchange, String requestBody) throws IOException{
 		
 		try {
-			int responseStatus = 400;
-			String responseBody = "";
+			int responseStatus = 400;																								//assigns initial value to response status
+			String responseBody = "";																								//assigns initial value to response body
 			
 			try {
 				StringBuilder requestedCars = new StringBuilder(requestBody);
 				
-				String removedCarStringJson = requestedCars.substring(requestedCars.indexOf("{"), requestedCars.indexOf("}") + 1);
+				String removedCarStringJson = requestedCars.substring(requestedCars.indexOf("{"), requestedCars.indexOf("}") + 1);	//add the previous version of edited car JSON string to removedCarStringJson
 				requestedCars.delete(requestedCars.indexOf("{"), requestedCars.indexOf("}") + 1);
 				
-				String createdCarStringJson = requestedCars.substring(requestedCars.indexOf("{"), requestedCars.indexOf("}") + 1);
+				String createdCarStringJson = requestedCars.substring(requestedCars.indexOf("{"), requestedCars.indexOf("}") + 1);	//add the new version of edited car JSON string to removedCarStringJson
 				requestedCars.delete(requestedCars.indexOf("{"), requestedCars.indexOf("}") + 1);
 				
 				Gson g = new Gson();
-				Car removedCar = g.fromJson(removedCarStringJson, Car.class);
-				Car createdCar = g.fromJson(createdCarStringJson, Car.class);
-				editCarInDatabase(removedCar, createdCar);
-				responseStatus = 204;
+				Car removedCar = g.fromJson(removedCarStringJson, Car.class);														//create car object from JSON
+				Car createdCar = g.fromJson(createdCarStringJson, Car.class);														//create car object from JSON
+				if(editCarInDatabase(removedCar, createdCar)==0)responseStatus = 204;												//car edited successfully, http response 201
+				else throw new IllegalArgumentException("could not remove car-object to database");									//breaks try catch block if edit in database is unsuccessful
 				
 			}catch(Exception e) {
 				responseStatus = 400;
@@ -410,7 +427,8 @@ public class ConnectionHandler implements HttpHandler{
         
 
 			exchange.sendResponseHeaders(responseStatus, responseBody.length() == 0 ? -1 : responseBody.length());					//if body length is 0 send -1 (no body), if not send body length
-			if (responseBody.length() > 0) {
+			
+			if (responseBody.length() > 0) {																						//if response has a body, send it
 				try (BufferedOutputStream out = new BufferedOutputStream(exchange.getResponseBody())) {
 					out.write(responseBody.getBytes("UTF-8"));
 				}
