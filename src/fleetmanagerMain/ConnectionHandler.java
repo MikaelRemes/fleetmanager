@@ -4,7 +4,6 @@ package fleetmanagerMain;
 import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -14,7 +13,6 @@ import com.google.gson.Gson;
 import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
-import com.sun.net.httpserver.HttpServer;
 
 import java.nio.charset.StandardCharsets;
 
@@ -23,10 +21,6 @@ public class ConnectionHandler implements HttpHandler{
 	
 	private CarDatabaseHandler carHandler;																// object which handles connections to car database within the API
 	
-	static final int PORT = 8083;																		// server PORT address
-	
-	static final int maxOnlineTime = 60;																// server online for maximum of 1 minute
-	static int currentOnlineTime = 0;																	// clock for server online time
 	
 	boolean running=true;
 	
@@ -35,42 +29,6 @@ public class ConnectionHandler implements HttpHandler{
 		this.carHandler = carHandler;																	
 	}
 	
-	/**
-	 * Starts the server.
-	 */
-	public static void main(String[] args) {
-		try {
-			
-			CarDatabaseHandler carDatabaseHandler = new CarDatabaseHandler();							// creates a connection to database which holds cars
-
-			HttpServer server = HttpServer.create(new InetSocketAddress(PORT), 0);						// creates the http server to port address PORT
-			
-			ConnectionHandler connection= new ConnectionHandler(carDatabaseHandler);					// creates a thread which handles the next httprequest
-							
-			server.createContext("/test", connection);													// adds the thread to http server
-																										// write "http://localhost:8083/test" to connect
-	        server.setExecutor(null); 																	// creates a default executor
-	        server.start();																				
-	        
-	        
-			System.out.println("server and connection handler online \n");
-			
-			while(currentOnlineTime <= maxOnlineTime) {													
-				Thread.sleep(1000);																		// setup time for connectionHandler and a clock for server online time
-				
-				currentOnlineTime++;																	// increment clock
-			}
-			
-			carDatabaseHandler.closeConnection();														// close connection to database which holds cars
-			System.out.println("Closed connection to database");
-			
-			server.stop(1);																				// closes http server after timer has ran out
-			
-		}catch(Exception e) {
-			e.printStackTrace();
-		}
-		
-	}
 	
 	//adds car to database
 	//returns 0 if addition to database was successful
@@ -117,8 +75,8 @@ public class ConnectionHandler implements HttpHandler{
 	//returns empty ArrayList if no such cars is in database
 	private ArrayList<Car> getCarListInDatabase(int yearModelMin, int yearModelMax, String brand, String model) {
 		StringBuilder sb = new StringBuilder("SELECT * FROM CARS WHERE (Yearmodel BETWEEN " + yearModelMin + " AND " + yearModelMax + ")");		//creates a string with matching parameters for a SQL query
-		if(!brand.equals("") && brand != null)sb.append(" AND Brand='" + brand + "'");
-		if(!model.equals("") && model != null)sb.append(" AND Model='" + model + "'");
+		if(!brand.equals("") && brand != null)sb.append(" AND Brand='" + brand + "'");															//if parameters have value for brand, add it to query
+		if(!model.equals("") && model != null)sb.append(" AND Model='" + model + "'");															//if parameters have value for model, add it to query
 		
 		ArrayList<Car> carList = carHandler.getCarListSQLQuery(sb.toString());
 		return carList;
@@ -130,7 +88,7 @@ public class ConnectionHandler implements HttpHandler{
 		return carHandler.getCarListSQLQuery("SELECT * FROM CARS");
 	}
 	
-	//handles http requests and sends appropritate response
+	//handles http requests and sends appropriate response
 	@Override
 	public void handle(HttpExchange exchange) {		
 		try {
@@ -313,6 +271,7 @@ public class ConnectionHandler implements HttpHandler{
 			try {
 				Gson g = new Gson();
 				Car createdCar = g.fromJson(requestBody, Car.class);
+				checkCarValidity(createdCar);																							//check if created car is legal
 				if(addCarToDatabase(createdCar)==0)responseStatus = 201;																//car created successfully, http response 201
 				else throw new IllegalArgumentException("could not add new car-object to database");									//breaks try catch block if addition to database is unsuccessful 
 				
@@ -358,9 +317,9 @@ public class ConnectionHandler implements HttpHandler{
 			
 			try {
 				Gson g = new Gson();
-				Car createdCar = g.fromJson(requestBody, Car.class);
-				if(removeCarFromDatabase(createdCar)==0)responseStatus = 204;														//car removed successfully, http response 201
-				else throw new IllegalArgumentException("could not remove car-object to database");									//breaks try catch block if removal from database is unsuccessful 
+				Car removedCar = g.fromJson(requestBody, Car.class);
+				if(removeCarFromDatabase(removedCar)==0)responseStatus = 204;														//car removed successfully, http response 204
+				else throw new IllegalArgumentException("could not remove car-object from database");									//breaks try catch block if removal from database is unsuccessful 
 				
 			}catch(Exception e) {
 				responseStatus = 400;
@@ -413,8 +372,9 @@ public class ConnectionHandler implements HttpHandler{
 				Gson g = new Gson();
 				Car removedCar = g.fromJson(removedCarStringJson, Car.class);														//create car object from JSON
 				Car createdCar = g.fromJson(createdCarStringJson, Car.class);														//create car object from JSON
+				checkCarValidity(createdCar);																						//check if created car is legal
 				if(editCarInDatabase(removedCar, createdCar)==0)responseStatus = 204;												//car edited successfully, http response 201
-				else throw new IllegalArgumentException("could not remove car-object to database");									//breaks try catch block if edit in database is unsuccessful
+				else throw new IllegalArgumentException("could not edit car-object in database");									//breaks try catch block if edit in database is unsuccessful
 				
 			}catch(Exception e) {
 				responseStatus = 400;
@@ -447,6 +407,12 @@ public class ConnectionHandler implements HttpHandler{
 		}catch(Exception e) {
 			e.printStackTrace();
 		}
+	}
+	
+	
+	
+	public void checkCarValidity(Car car) throws IllegalArgumentException{
+		if(car.getLicence() == null || car.getLicence() == "")throw new IllegalArgumentException("licence cannot be null or empty");
 	}
 		
 	
