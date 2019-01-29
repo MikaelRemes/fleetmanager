@@ -10,22 +10,27 @@ public class Car {
 	private int engineSize;
 	private int enginePower;
 	
-	//constructor
-	//null string values for missing string parameters
-	//integer values 0 when missing parameters
-	//licence cannot be null, it is the primary key value!!
-	//TODO: check licence value and throw exception
-	public Car(String brand, String model, String licence, int yearModel, String inspectionDate, int engineSize, int enginePower) {
+	
+	/**
+	 * constructor
+	 * licence cannot be null, it is the primary key value!!
+	 * @param null string values for missing string parameters and integer values 0 when missing parameters
+	 */
+	public Car(String brand, String model, String licence, int yearModel, String inspectionDate, int engineSize, int enginePower) throws IllegalArgumentException{
 		this.brand=brand;
 		this.model=model;
-		this.licence=licence;
+		if(!licence.equals("") && licence!=null)this.licence=licence;
+		else throw new IllegalArgumentException("Licence cannot be null or empty");
 		this.yearModel=yearModel;
 		this.inspectionDate=inspectionDate;
 		this.engineSize=engineSize;
 		this.enginePower=enginePower;
 	}
 	
-
+	/**
+	 * Turns the car object into an INSERT query string
+	 * @return "INSERT INTO CARS car parameters X VALUES car Y" -query string
+	 */
 	public String toAdditionQueryString() {
 		StringBuilder carQueryString = new StringBuilder("");
 		StringBuilder valuesQueryString = new StringBuilder("");

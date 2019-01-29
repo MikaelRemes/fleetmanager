@@ -24,24 +24,31 @@ public class ConnectionHandler implements HttpHandler{
 	
 	boolean running=true;
 	
-	
+	/**
+	 * constructor
+	 * @param carHandler for SQL database connection
+	 */
 	public ConnectionHandler(CarDatabaseHandler carHandler) {
 		this.carHandler = carHandler;																	
 	}
 	
 	
-	//adds car to database
-	//returns 0 if addition to database was successful
-	//returns -1 if addition to database was unsuccessful
+	/**
+	 * adds car to database
+	 * @param Car-object which should be added to database
+	 * @return returns 0 if addition to database was successful, returns -1 if addition to database was unsuccessful
+	 */
 	private int addCarToDatabase(Car car) {
 		return carHandler.executeSQLQuery(car.toAdditionQueryString());
 	}
 	
-	//edits values of a car in database
-	//by replacing a car object in database with another car
-	//returns 0 if edit in database was successful
-	//returns -1 if edit in database was unsuccessful
+	
 	//TODO: if previousCar cannot be removed from database and neither can nextCar, both versions will stay in database, bad outcome
+	/**
+	 * edits values of a car in database by replacing a car object in database with another car
+	 * @param Car-object which should be added to database and Car-object which should be removed from database
+	 * @return returns 0 if edit in database was successful, returns -1 if edit in database was unsuccessful
+	 */
 	private int editCarInDatabase(Car previousCar, Car nextCar) {
 		if(addCarToDatabase(nextCar) == 0) {
 			if(removeCarFromDatabase(previousCar) == 0) {
@@ -54,25 +61,37 @@ public class ConnectionHandler implements HttpHandler{
 		else return -1;
 	}
 	
-	//removes a car from database
-	//returns 0 if removal from database was successful
-	//returns -1 if removal from database was unsuccessful
+
+	/**
+	 * removes a car from database
+	 * @param Car-object which should be removed from database
+	 * @return returns 0 if removal from database was successful, returns -1 if removal from database was unsuccessful
+	 */
 	private int removeCarFromDatabase(Car car) {
 		return carHandler.executeSQLQuery("DELETE FROM Cars WHERE Licence='" + car.getLicence() +"'");
 	}
 	
 	
 	
-	//gets an object copy of a car in database
-	//returns null if car is not in database
+	
+	/**
+	 * gets an object copy of a car in database
+	 * @param Licence of said Car-object
+	 * @return Car object from database, returns null if car is not in database
+	 */
 	private Car getCarInDatabase(String licence) {
 		ArrayList<Car> carList = carHandler.getCarListSQLQuery("SELECT * FROM CARS WHERE Licence='" + licence + "'");
 		if(carList.size() > 0)return carList.get(0);
 		else return null;
 	}
 	
-	//gets an ArrayList copy of a particular set of cars
-	//returns empty ArrayList if no such cars is in database
+	
+	//TODO: stringbuilder which can make a query that can ignore yearmodelvalues if they are 0 or null
+	/**
+	 * gets an ArrayList copy of a particular set of cars
+	 * @param Minimum value for year model, maximum value for yearmodel, brand, model
+	 * @return returns a list of said cars in database, returns empty ArrayList if no such cars is in database
+	 */
 	private ArrayList<Car> getCarListInDatabase(int yearModelMin, int yearModelMax, String brand, String model) {
 		StringBuilder sb = new StringBuilder("SELECT * FROM CARS WHERE (Yearmodel BETWEEN " + yearModelMin + " AND " + yearModelMax + ")");		//creates a string with matching parameters for a SQL query
 		if(!brand.equals("") && brand != null)sb.append(" AND Brand='" + brand + "'");															//if parameters have value for brand, add it to query
@@ -82,32 +101,40 @@ public class ConnectionHandler implements HttpHandler{
 		return carList;
 	}
 	
-	//Lists all cars currently in database
-	//returns empty list if no cars in database
+	
+	/**
+	 * gets an ArrayList copy of all cars in database
+	 * @return returns a list of all cars in database, returns empty list if no cars in database
+	 */
 	private ArrayList<Car> getAllCars() {
 		return carHandler.getCarListSQLQuery("SELECT * FROM CARS");
 	}
 	
-	//handles http requests and sends appropriate response
+	
+	/**
+	 * handles http requests and sends appropriate response
+	 * overrides the httphandler "handler" -method
+	 * @param HttpExchange object
+	 */
 	@Override
 	public void handle(HttpExchange exchange) {		
 		try {
 			
-			String requestMethod = exchange.getRequestMethod();
+			String requestMethod = exchange.getRequestMethod();																					//Checks the request method, POST,GET,DELETE etc.
 			
-			System.out.println("Exchange request method: " + requestMethod + "\n");														//Checks the request method, POST,GET,DELETE etc.
+			System.out.println("Exchange request method: " + requestMethod + "\n");																//prints out the request method for debugging purposes
 			
 			StringBuilder requestHeaders = new StringBuilder();
-            Headers headers = exchange.getRequestHeaders();																				//Gets the headers of the http request
+            Headers headers = exchange.getRequestHeaders();																						//Gets the headers of the http request
             for (Map.Entry<String, List<String>> header : headers.entrySet()) {
             	requestHeaders.append(header);
             	requestHeaders.append("\n");
             }
             
-            System.out.println("connection headers: \n" + requestHeaders.toString());
+            System.out.println("connection headers: \n" + requestHeaders.toString());															//prints out the headers for debug purpouses
 			
 			StringBuilder requestBody = new StringBuilder();																					//Gets the body of the http request
-            try (InputStreamReader reader = new InputStreamReader(exchange.getRequestBody(), StandardCharsets.UTF_8.name())) {
+            try (InputStreamReader reader = new InputStreamReader(exchange.getRequestBody(), StandardCharsets.UTF_8.name())) {					//gets data from inputstream 256 charachters at a time
                 char[] buffer = new char[256];
                 int read;
                 while ((read = reader.read(buffer)) != -1) {
@@ -116,7 +143,7 @@ public class ConnectionHandler implements HttpHandler{
             }
             
             
-            System.out.println("connection body: \n" + requestBody.toString() + "\n");      
+            System.out.println("connection body: \n" + requestBody.toString() + "\n");      													//prints out the request body for debugging purposes
             
             
 
@@ -136,22 +163,23 @@ public class ConnectionHandler implements HttpHandler{
 			}
 			
 			//client wishes to edit a car in database
-			if(requestMethod.equals("PATCH")) {
-				doPatchCarResponse(exchange, requestBody.toString());
+			if(requestMethod.equals("PUT")) {
+				doPutCarResponse(exchange, requestBody.toString());
 			}
 			
 			//TODO: invalid request
-			if(!requestMethod.equals("PATCH") && !requestMethod.equals("DELETE") && !requestMethod.equals("POST") && !requestMethod.equals("GET")) {
+			//client has made an invalid request
+			if(!requestMethod.equals("PUT") && !requestMethod.equals("DELETE") && !requestMethod.equals("POST") && !requestMethod.equals("GET")) {
 				
 			}
 			
-			//close input stream after handling request
+			//close input stream after handling the client's request
 			exchange.getRequestBody().close();
 			
 		}catch(Exception e) {
 			e.printStackTrace();
 		} finally {	
-			System.out.println("\n REQUEST HANDLED! \n");
+			System.out.println("\n CLIENT REQUEST HANDLED! \n");
 		}
 	}
 	
@@ -262,6 +290,9 @@ public class ConnectionHandler implements HttpHandler{
 		}
 	}
 	
+	/**
+	 * Handles POST-request response
+	 */
 	public void doPostCarResponse(HttpExchange exchange, String requestBody) throws IOException{
 		
 		try {
@@ -309,6 +340,9 @@ public class ConnectionHandler implements HttpHandler{
 		}
 	}
 	
+	/**
+	 * Handles DELETE-request response
+	 */
 	public void doDeleteCarResponse(HttpExchange exchange, String requestBody) throws IOException{
 		
 		try {
@@ -354,7 +388,11 @@ public class ConnectionHandler implements HttpHandler{
 		}
 	}
 	
-	public void doPatchCarResponse(HttpExchange exchange, String requestBody) throws IOException{
+	/**
+	 * Handles PUT-request response
+	 * in the request previous version of car-object before next version
+	 */
+	public void doPutCarResponse(HttpExchange exchange, String requestBody) throws IOException{
 		
 		try {
 			int responseStatus = 400;																								//assigns initial value to response status
@@ -410,7 +448,9 @@ public class ConnectionHandler implements HttpHandler{
 	}
 	
 	
-	
+	/**
+	 * checks if car object's values are legal
+	 */
 	public void checkCarValidity(Car car) throws IllegalArgumentException{
 		if(car.getLicence() == null || car.getLicence() == "")throw new IllegalArgumentException("licence cannot be null or empty");
 	}

@@ -8,6 +8,8 @@ public class ServerStarter {
 	
 	static final int PORT = 8083;																		// server PORT address
 	
+	static final String dashName = "/cars";																//URI after "/" sign text for API 
+	
 	static final int maxOnlineTime = 3600;																// server online for maximum of 1 hour
 	static int currentOnlineTime = 0;																	// clock for server online time
 
@@ -23,8 +25,8 @@ public class ServerStarter {
 			
 			ConnectionHandler connection = new ConnectionHandler(carDatabaseHandler);					// creates a thread which handles the next httprequest and does the requested methods
 							
-			server.createContext("/test", connection);													// adds the thread to http server
-																										// write "http://localhost:8083/test" to connect
+			server.createContext(dashName, connection);													// adds the thread to http server
+																										// write "http://localhost:8083/cars" to connect
 	        server.setExecutor(null); 																	// creates a default executor
 	        server.start();																				
 	        
