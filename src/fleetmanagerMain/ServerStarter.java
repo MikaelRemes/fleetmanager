@@ -2,9 +2,10 @@ package fleetmanagerMain;
 
 import java.net.InetSocketAddress;
 
+
 import com.sun.net.httpserver.HttpServer;
 
-public class ServerStarter {
+public class ServerStarter{
 	
 	static final int PORT = 8083;																		// server PORT address
 	
@@ -14,7 +15,7 @@ public class ServerStarter {
 	static int currentOnlineTime = 0;																	// clock for server online time
 
 	/**
-	 * Starts the server.
+	 * Starts the server and starts server GUI
 	 */
 	public static void main(String[] args) {
 		try {
@@ -28,21 +29,22 @@ public class ServerStarter {
 			server.createContext(dashName, connection);													// adds the thread to http server
 																										// write "http://localhost:8083/cars" to connect
 	        server.setExecutor(null); 																	// creates a default executor
-	        server.start();																				
 	        
+	        Thread.sleep(100);																			// setup time for connectionHandler and a clock for server online time
 	        
-			System.out.println("server and connection handler online \n");
+	        ServerUI ui = new ServerUI(server);																		//generates UI which handles starting of server, closing of server and communication to server user
+	        
 			
 			while(currentOnlineTime <= maxOnlineTime) {													
-				Thread.sleep(1000);																		// setup time for connectionHandler and a clock for server online time
-				
+				Thread.sleep(1000);																		// timer for clock
+				if(ui.getServerStopped())break;															// if UI has stopped the server, break out of loop
 				currentOnlineTime++;																	// increment clock
 			}
 			
 			carDatabaseHandler.closeConnection();														// close connection to database which holds cars
 			System.out.println("Closed connection to database");
 			
-			server.stop(1);																				// closes http server after timer has ran out
+			server.stop(1);																				// closes http server after timer has ran out in case user hasn't closed it yet
 			
 		}catch(Exception e) {
 			e.printStackTrace();
