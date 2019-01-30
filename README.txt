@@ -2,15 +2,17 @@ FLEETMANAGER README KÄYTTÖOHJEET
 
 
 1.TOIMINTAAN VAADITUT OHJELMAT/TIEDOSTOT: 
-Jos ohjelma on kansiomuodossa, varmista ennen käyttöä, että fleetmanager-kansiossa on seuraavat tiedostot:
+Varmista ennen käyttöä, että fleetmanager-kansiossa on seuraavat tiedostot:
 -java ohjelman bin ja src (connectionHandler,Car,CarDatabaseHandler,ServerStarter ja ServerUI) tiedostot
 -CarDatatabase.db tietokantatiedosto
+-.project ja .classpath tiedostot
 -kaksi jar tiedostoa, gson-2.7 ja sqlite-jdbc-3.23.1
 
 Ohjelma vaatii toimintaan ja testaukseen myös:
 -Testiohjelman advanced REST client
 -mahdollisesti SQLite ohjelman
 
+Kaikki tarvittavat tiedostot pitäisivät olla zip.tiedostossa
 
 2. HUOMIOITAVAA:
 Ohjelmassa on pari tunnettua ongelmaa: 
@@ -33,18 +35,18 @@ siksi auto-oliot eivät ole välttämättä täysin realistia ja tallennettavien auto-
 
 3. Käyttöohjeet:
 
-Jos ohejlma on tiedostomuodossa, ensimmäiseksi tulee käynnistää java-koodilla tehty ServerStarter luokan Main-funktio, esimerkiksi eclipsen (java developer -ohjelma) avulla.
+Jos haluat käyttää ohjelmaa developer muodossa, ensimmäiseksi tulee käynnistää java-koodilla tehty ServerStarter (löytyy src kansiosta) luokan Main-funktio, esimerkiksi eclipsen (java developer -ohjelma) avulla.
 Pieni "Fleet Manager UI" ikkuna tulisi ilmestyä ruudulle. Painamalla "start server"-nappia server käynnistyy. Kun napin painalluksen jälkeen ohjelman konsoliin ilmestyy "server and connection handler online",
 on ohjelma valmis API testeihin. Ohjelma on päällä noin tunnin ennen kuin se automaattisesti sammuu. Konsolista näkee ohjelman toiminnan ja sen käsittelemien pyyntöjen parametrit.
 
-Jos ohjelma on java jar-muodossa, se käynnistyy käynnistämällä jar tiedoston. Pieni "Fleet Manager UI" ikkuna tulisi ilmestyä ruudulle.
+Jos haluat käyttää ohjelmaa vain testaukseen on java jar-muodossa "FleetManagerServer" -niminen käynnistettävä ohjelma. Se käynnistyy kaksoisnäpäyttämällä ohjelmaa. Pieni "Fleet Manager UI" ikkuna tulisi ilmestyä ruudulle.
 Painamalla "start server"-nappia server käynnistyy ja viimeistään noin sekunnin jälkeen kaikki toiminnat pitäisivät olla valmiita testaukseen. 
 
 Seuraavaksi voi käyttää testiohjelmaa API:n testaukseen.
 Testiohjelmalla advanced REST client voidaan tehdä GET,POST,DELETE ja PUT http pyyntö -testejä.
 Toiminta ei ole täydellisestä https protokollalla, suosittelen vain ainoastaan http protokollan käyttöä. Lisäksi esimerkiksi Postmanillä tehtyjen http pyyntöjen/kutsujen kanssa on ollut ongelmia.
 
-Kun on valmis API testauksen kanssa, "shut down server" -nappi sammuttaa ohjelman.
+Kun on valmis API testauksen kanssa, "shut down server" -nappi sammuttaa ohjelman. Väärin suljettu ohjelma pyörii taustalla vielä tunnin (toimii silti) ja estää ohjelman uudelleenkäynnistyksen. 
 
 API testauksen osoite on http://localhost:8083/cars
 
